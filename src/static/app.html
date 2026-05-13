@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Igor — dashboard</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-bg-color, #17212b);
+    --text: var(--tg-theme-text-color, #f5f5f5);
+    --hint: var(--tg-theme-hint-color, #708499);
+    --link: var(--tg-theme-link-color, #6ab3f3);
+    --button: var(--tg-theme-button-color, #5288c1);
+    --button-text: var(--tg-theme-button-text-color, #fff);
+    --secondary-bg: var(--tg-theme-secondary-bg-color, #232e3c);
+    --section-bg: var(--tg-theme-section-bg-color, #232e3c);
+    --separator: var(--tg-theme-section-separator-color, #2c3a4a);
+    --danger: #e54848;
+    --green: #38c172;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Helvetica Neue", system-ui, sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+  }
+  body { padding-bottom: 80px; }
+  header {
+    padding: 14px 16px 4px;
+    display: flex; align-items: baseline; justify-content: space-between;
+  }
+  header h1 { font-size: 22px; font-weight: 700; margin: 0; color: var(--text); }
+  header .date { color: var(--hint); font-size: 13px; }
+  header h1 small { font-weight: 500; opacity: .75; font-size: 14px; margin-left: 6px; }
+  .tabs {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; gap: 4px;
+    padding: 8px 12px; background: var(--bg);
+    overflow-x: auto;
+    border-bottom: 1px solid var(--separator);
+  }
+  .tabs button {
+    flex: 0 0 auto;
+    background: transparent; color: var(--hint);
+    border: 0; padding: 8px 12px;
+    border-radius: 12px; font-size: 14px; font-weight: 500;
+    cursor: pointer;
+  }
+  .tabs button.active {
+    background: var(--button); color: var(--button-text);
+  }
+  main { padding: 12px; }
+  .section {
+    background: var(--section-bg);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .section h2 {
+    font-size: 13px; font-weight: 600;
+    color: var(--hint); margin: 0 0 10px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--separator);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row .left { flex: 1; min-width: 0; }
+  .row .left .title { font-size: 15px; }
+  .row .left .sub { font-size: 12px; color: var(--hint); margin-top: 2px; }
+  .row .right { margin-left: 8px; flex: 0 0 auto; }
+  .empty { color: var(--hint); font-size: 13px; padding: 6px 0; }
+  .pill {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 10px; font-size: 11px;
+    background: var(--bg); color: var(--hint);
+    margin-left: 6px;
+  }
+  .progress {
+    height: 4px; background: var(--separator);
+    border-radius: 2px; overflow: hidden; margin-top: 6px;
+  }
+  .progress > div { height: 100%; background: var(--green); }
+  .check {
+    width: 28px; height: 28px;
+    border-radius: 14px;
+    border: 2px solid var(--hint);
+    background: transparent;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  .check.done {
+    background: var(--green); border-color: var(--green);
+  }
+  .check svg { width: 14px; height: 14px; fill: white; opacity: 0; transition: opacity .18s ease; }
+  .check.done svg { opacity: 1; }
+  .check.sq { border-radius: 6px; }
+  .check { transition: background-color .18s ease, border-color .18s ease, transform .18s ease; }
+  .check:active { transform: scale(.92); }
+  .row.task { padding: 6px 0; cursor: pointer; transition: opacity .18s ease, transform .2s ease; }
+  .row.task .title { transition: color .18s ease, text-decoration-color .18s ease; flex: 1; min-width: 0; }
+  .row.task .title.done { text-decoration: line-through; color: var(--hint); }
+  .row.task .title[contenteditable="true"] {
+    outline: 2px solid var(--button); border-radius: 6px; padding: 2px 6px;
+    background: var(--card);
+  }
+  .row.task .check { margin-right: 10px; flex: 0 0 auto; }
+  .row.task .left { display: flex; align-items: center; flex: 1; min-width: 0; }
+  .row.task.draggable { user-select: none; }
+  .row.task.dragging { opacity: 0.4; }
+  .row.task.drop-target-above { box-shadow: 0 -2px 0 0 var(--button); }
+  .row.task.drop-target-below { box-shadow: 0 2px 0 0 var(--button); }
+  .drag-handle {
+    color: var(--hint); cursor: grab;
+    padding: 4px 6px; margin-right: 4px; line-height: 1;
+    font-size: 14px; letter-spacing: -2px;
+    flex: 0 0 auto;
+  }
+  .drag-handle:active { cursor: grabbing; }
+
+  /* Habit calendar */
+  .habit-card { padding: 10px 0; border-bottom: 1px solid var(--separator); }
+  .habit-card:last-child { border-bottom: 0; }
+  .habit-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .habit-title { font-size: 15px; font-weight: 500; flex: 1; min-width: 0; }
+  .streak {
+    display: inline-block; margin-left: 6px; padding: 1px 7px;
+    border-radius: 999px; font-size: 12px;
+    background: linear-gradient(135deg, #ff6b35, #ff9f43);
+    color: #fff; box-shadow: 0 1px 2px rgba(255,107,53,0.4);
+  }
+  .cells {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    gap: 6px; margin: 10px 0 6px;
+  }
+  .cell {
+    aspect-ratio: 1 / 1;
+    border-radius: 8px;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 3px;
+    transition: transform .18s cubic-bezier(.4,1.4,.6,1), background-color .25s ease, color .2s ease;
+  }
+  .cell-dow { font-size: 10px; opacity: 0.7; line-height: 1; font-weight: 500; text-transform: lowercase; }
+  .cell.done   { background: var(--green); color: #fff; }
+  .cell.done .cell-dow { opacity: 0.95; }
+  .cell.miss   { background: rgba(229, 72, 72, 0.22); color: rgba(255,255,255,0.55); }
+  .cell.future { background: var(--separator); color: var(--hint); opacity: 0.45; }
+  .cell.today  { outline: 2px solid var(--button); outline-offset: -1px; }
+  .cell.bump   { transform: scale(1.18); }
+  .habit-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+  .iconbtn-mini {
+    background: transparent; border: 0; cursor: pointer; color: var(--hint);
+    padding: 6px; border-radius: 8px; line-height: 0;
+    transition: color .18s ease, background-color .18s ease;
+  }
+  .iconbtn-mini:hover { color: var(--danger); background: rgba(229,72,72,0.12); }
+  .habit-foot {
+    display: flex; gap: 14px; font-size: 12px; color: var(--hint);
+    margin-top: 2px; flex-wrap: wrap;
+  }
+  .habit-foot b { color: var(--text); font-weight: 600; }
+  .habit-card.removing { opacity: 0; transform: translateX(-12px); transition: all .25s ease; }
+  .habit-card { transition: opacity .25s ease, transform .25s ease; }
+
+  /* Exercises */
+  .ex-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--separator);
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .ex-row.removing { opacity: 0; transform: translateX(-12px); }
+  .ex-name {
+    font-size: 15px; font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: text;
+  }
+  .ex-name[contenteditable="true"] {
+    outline: 2px solid var(--button); border-radius: 6px; padding: 2px 6px;
+    background: var(--card);
+  }
+  .ex-controls {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--separator); border-radius: 999px;
+    padding: 3px;
+  }
+  .ex-btn {
+    width: 30px; height: 30px;
+    border-radius: 999px; border: 0;
+    background: var(--card); color: var(--text);
+    font-size: 18px; line-height: 1; font-weight: 600;
+    cursor: pointer;
+    transition: transform .15s ease, background-color .18s ease;
+  }
+  .ex-btn:active { transform: scale(.88); }
+  .ex-btn.plus { background: var(--button); color: var(--button-text); }
+  .ex-reps {
+    min-width: 38px; text-align: center;
+    font-size: 16px; font-weight: 700;
+    transition: transform .18s cubic-bezier(.4,1.4,.6,1);
+  }
+  .ex-reps.bump { transform: scale(1.25); }
+  .ex-meta { display: flex; align-items: center; gap: 4px; }
+  .ex-step {
+    background: transparent; border: 1px solid var(--separator);
+    color: var(--hint);
+    border-radius: 999px;
+    font-size: 11px; padding: 2px 8px;
+    cursor: pointer;
+    transition: background-color .18s ease, color .18s ease;
+  }
+  .ex-step:hover { background: var(--separator); color: var(--text); }
+  .ex-add {
+    display: flex; gap: 6px; padding-top: 12px; align-items: center;
+  }
+  .ex-add input {
+    flex: 1; min-width: 0;
+    padding: 8px 10px;
+    border-radius: 8px; border: 1px solid var(--separator);
+    background: var(--card); color: var(--text);
+    font-size: 14px;
+  }
+  .ex-add input:focus { outline: 2px solid var(--button); outline-offset: 0; }
+  .iconbtn.primary { background: var(--button); color: var(--button-text); border-color: var(--button); }
+
+  .meal-row {
+    padding: 10px 0; border-bottom: 1px solid var(--separator);
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .meal-row.removing { opacity: 0; transform: translateX(-12px); }
+  .meal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .meal-name {
+    font-size: 15px; font-weight: 500; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: text;
+  }
+  .meal-name[contenteditable="true"] {
+    outline: 2px solid var(--button); border-radius: 6px; padding: 2px 6px;
+    background: var(--card); white-space: normal;
+  }
+  .meal-macros {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 6px; margin-top: 8px;
+  }
+  .meal-macro {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 4px 2px; border-radius: 8px; background: var(--card);
+  }
+  .meal-macro-lbl { font-size: 10px; color: var(--hint); text-transform: uppercase; letter-spacing: .05em; }
+  .meal-macro-val {
+    min-width: 30px; text-align: center; font-size: 14px; font-weight: 700;
+    transition: transform .18s cubic-bezier(.4,1.4,.6,1);
+  }
+  .meal-macro-val.bump { transform: scale(1.25); }
+  .meal-macro .ex-btn { width: 24px; height: 24px; font-size: 14px; }
+  .meal-macro {
+    display: grid; grid-template-areas: 'lbl lbl lbl' 'minus val plus';
+    grid-template-columns: 1fr auto 1fr;
+    gap: 2px 4px; align-items: center; justify-items: center;
+    padding: 4px 4px 6px;
+  }
+  .meal-macro .meal-macro-lbl { grid-area: lbl; }
+  .meal-macro .meal-macro-val { grid-area: val; }
+  .meal-macro .ex-btn.minus { grid-area: minus; justify-self: end; }
+  .meal-macro .ex-btn.plus  { grid-area: plus;  justify-self: start; }
+  .meal-add { padding-top: 14px; }
+  .macro-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 8px; margin-top: 8px;
+  }
+  .macro {
+    background: var(--bg); padding: 8px;
+    border-radius: 10px; text-align: center;
+  }
+  .macro .num { font-size: 16px; font-weight: 600; }
+  .macro .lbl { font-size: 11px; color: var(--hint); }
+  .iconbtn {
+    background: transparent; border: 0; padding: 4px 8px;
+    color: var(--danger); font-size: 12px; cursor: pointer;
+  }
+  .loading { text-align: center; padding: 30px; color: var(--hint); }
+  .err { padding: 12px; background: #5a2222; border-radius: 10px; color: #fff; font-size: 13px; }
+
+  /* Theme machinery: body gets a class theme-* and an optional .has-bg */
+  body.has-bg { background-attachment: fixed; background-size: cover; background-position: center; }
+  body.has-bg .section { background: rgba(20, 25, 35, 0.62); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  body.has-bg .tabs { background: rgba(20, 25, 35, 0.62); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  body.has-bg .pill, body.has-bg .macro { background: rgba(0,0,0,0.30); }
+  body.has-bg .dot { background: rgba(255,255,255,0.18); }
+
+  body.theme-tg     { /* default — uses tg vars */ }
+  body.theme-light  { --bg:#f5f6f8; --text:#15171a; --hint:#6e7783; --section-bg:#ffffff; --separator:#e3e5ea; --button:#3578e5; --button-text:#ffffff; --link:#1a73e8; }
+  body.theme-mid    { --bg:#0f1117; --text:#eef0f4; --hint:#7b8597; --section-bg:#171a22; --separator:#262a36; --button:#5b8def; --button-text:#fff; }
+  body.theme-rose   { --bg:#1a0f15; --text:#f9eef3; --hint:#a1788a; --section-bg:#241420; --separator:#3a1f2c; --button:#e6477a; --button-text:#fff; }
+  body.theme-forest { --bg:#0e1a14; --text:#e9f3ec; --hint:#7d9b89; --section-bg:#16241d; --separator:#1f3328; --button:#3fb380; --button-text:#fff; }
+  body.theme-ocean  { --bg:#0a1623; --text:#eaf2fb; --hint:#7c93b0; --section-bg:#11253b; --separator:#1c3551; --button:#3aa0e6; --button-text:#fff; }
+  body.theme-sunset { --bg:#1c1108; --text:#fbeede; --hint:#b09177; --section-bg:#2a1810; --separator:#3a2517; --button:#ff8a3d; --button-text:#fff; }
+  body.theme-mono   { --bg:#0c0c0e; --text:#f3f3f4; --hint:#888a90; --section-bg:#161618; --separator:#26272a; --button:#e8e8e9; --button-text:#0c0c0e; }
+  body.theme-lav    { --bg:#15102a; --text:#ece6fb; --hint:#8d83b8; --section-bg:#1f1740; --separator:#312855; --button:#a78bfa; --button-text:#fff; }
+  body.theme-mint   { --bg:#0a1a18; --text:#e5f5f1; --hint:#7c9b95; --section-bg:#10231f; --separator:#1d3631; --button:#34d399; --button-text:#06241c; }
+  body.theme-sand   { --bg:#fbf6ee; --text:#22201b; --hint:#867f6f; --section-bg:#ffffff; --separator:#e9e2d4; --button:#c08945; --button-text:#fff; }
+  body.theme-slate  { --bg:#101418; --text:#dde3ea; --hint:#7e8691; --section-bg:#171c22; --separator:#262d35; --button:#94a3b8; --button-text:#101418; }
+
+  /* Settings */
+  .icon-button {
+    background: transparent; border: 0; cursor: pointer; color: var(--hint);
+    padding: 6px; border-radius: 50%; line-height: 0;
+  }
+  .icon-button:hover { color: var(--text); }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    display: none; align-items: flex-end; justify-content: center;
+    z-index: 100;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    width: 100%; max-width: 520px;
+    background: var(--section-bg); color: var(--text);
+    border-top-left-radius: 18px; border-top-right-radius: 18px;
+    padding: 16px 18px 28px; max-height: 85vh; overflow-y: auto;
+  }
+  .modal h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  .modal .grp { margin-top: 14px; }
+  .modal .grp-title { font-size: 12px; color: var(--hint); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
+  .swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .swatch {
+    height: 56px; border-radius: 12px; border: 2px solid transparent; cursor: pointer; position: relative;
+    display: flex; align-items: flex-end; justify-content: center; padding: 4px;
+    color: #fff; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+  .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px var(--button); }
+  .swatch.no-bg { background: var(--section-bg); color: var(--hint); border: 1px dashed var(--separator); }
+  .accent-row { display: flex; align-items: center; gap: 10px; }
+  .accent-row input[type="color"] {
+    width: 50px; height: 40px; border: 0; padding: 0;
+    background: transparent; cursor: pointer; border-radius: 8px;
+  }
+  .accent-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  .accent-row input[type="color"]::-webkit-color-swatch { border: 2px solid var(--separator); border-radius: 8px; }
+  .accent-preview {
+    flex: 1; height: 28px; border-radius: 8px;
+    background: var(--button);
+    transition: background-color .2s ease;
+  }
+  .upload-row { display: flex; gap: 8px; }
+  body.has-custom-bg { background-size: cover; background-position: center; background-attachment: fixed; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="hello">Привет</h1>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span class="date" id="date"></span>
+    <button id="btn-settings" class="icon-button" title="Темы и обои">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54A.484.484 0 0014 2h-4c-.25 0-.46.18-.49.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.63 8.48a.5.5 0 00.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.30.59.22l2.39-.96c.5.38 1.03.70 1.62.94l.36 2.54c.05.24.25.42.50.42h4c.25 0 .46-.18.49-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.03-1.58zM12 15.6A3.6 3.6 0 018.4 12 3.6 3.6 0 0112 8.4a3.6 3.6 0 013.6 3.6 3.6 3.6 0 01-3.6 3.6z"/></svg>
+    </button>
+  </div>
+</header>
+<div id="settings-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>Настройки</h3>
+    <div style="color:var(--hint);font-size:13px">Тема и обои сохраняются в браузере.</div>
+    <div class="grp">
+      <div class="grp-title">Тема</div>
+      <div class="swatches" id="themes"></div>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Акцент (кнопки, выделения)</div>
+      <div class="accent-row">
+        <input type="color" id="accentPicker" value="#5288c1"/>
+        <span class="accent-preview" id="accentPreview"></span>
+        <button id="accentReset" class="iconbtn">сбросить</button>
+      </div>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Цвет текста</div>
+      <div class="accent-row">
+        <input type="color" id="textPicker" value="#ffffff"/>
+        <span class="accent-preview" id="textPreview" style="background:var(--text)"></span>
+        <button id="textReset" class="iconbtn">сбросить</button>
+      </div>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Обои</div>
+      <div class="swatches" id="wallpapers"></div>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Своя картинка фона</div>
+      <div class="upload-row">
+        <input type="file" id="bgFile" accept="image/*" style="display:none"/>
+        <button id="bgUploadBtn" class="iconbtn">загрузить фото</button>
+        <button id="bgClearBtn" class="iconbtn" style="display:none">убрать своё</button>
+      </div>
+      <div class="hint" style="font-size:11px;color:var(--hint);margin-top:4px">обрежу и сожму, сохраню локально в браузере</div>
+    </div>
+    <div class="grp">
+      <div class="grp-title">🧠 Нейронка (Groq API Key)</div>
+      <div style="font-size:12px;color:var(--hint);margin-bottom:8px;line-height:1.4">
+        Бот работает через Groq (бесплатная нейросеть Llama 3.3 70B).<br>
+        Вставь свой API-ключ, чтобы бот начал отвечать.
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="groqKeyInput" placeholder="gsk_xxxxxxxxxxxxxxxx" autocomplete="off"
+          style="flex:1;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid var(--separator);background:var(--bg);color:var(--text);font-size:13px;font-family:monospace"/>
+        <button id="groqKeySave" class="iconbtn primary" style="padding:8px 12px;white-space:nowrap">сохранить</button>
+      </div>
+      <div id="groqKeyStatus" style="font-size:12px;margin-top:6px;color:var(--hint)"></div>
+      <details style="margin-top:10px">
+        <summary style="font-size:13px;color:var(--link);cursor:pointer">Где взять ключ бесплатно?</summary>
+        <div style="font-size:12px;color:var(--hint);margin-top:6px;line-height:1.5;padding-left:4px">
+          1. Зайди на <a href="https://console.groq.com" target="_blank" style="color:var(--link)">console.groq.com</a><br>
+          2. Зарегистрируйся (Google / GitHub — бесплатно)<br>
+          3. Слева в меню нажми <b>API Keys</b><br>
+          4. Нажми <b>Create API Key</b>, дай любое имя<br>
+          5. Скопируй ключ (начинается с <code style="background:var(--separator);padding:1px 4px;border-radius:4px">gsk_</code>) и вставь сюда<br><br>
+          Лимит бесплатного плана: ~30 запросов/мин, 14 400/день — этого хватит с запасом.
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+<div class="tabs">
+  <button data-tab="today" class="active">Сегодня</button>
+  <button data-tab="tasks">Задачи</button>
+  <button data-tab="habits">Привычки</button>
+  <button data-tab="workouts">Тренировки</button>
+  <button data-tab="food">Еда</button>
+</div>
+<main id="main"><div class="loading">Загружаю…</div></main>
+<script>
+(function(){
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand && tg.expand(); }
+  const initData = tg && tg.initData ? tg.initData : '';
+  const main = document.getElementById('main');
+
+  const fmtDate = (d) => {
+    const days = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+    return d.getDate() + ' ' + ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'][d.getMonth()] + ', ' + days[d.getDay()];
+  };
+  document.getElementById('date').textContent = fmtDate(new Date());
+
+  // Greeting: time-of-day based, optionally with the user's first name.
+  // Modes (cycled via clicking the heading): 'time' (default, "Доброе утро"),
+  // 'time-name' ("Доброе утро, Игорь"), 'name' ("Привет, Игорь").
+  const LS_GREET = 'asis.greet';
+  function greetingFor(d) {
+    const h = d.getHours();
+    if (h >= 5  && h < 12) return 'Доброе утро';
+    if (h >= 12 && h < 18) return 'Добрый день';
+    if (h >= 18 && h < 23) return 'Добрый вечер';
+    return 'Доброй ночи';
+  }
+  function userFirstName() {
+    return (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.first_name) || '';
+  }
+  function renderGreeting() {
+    const mode = localStorage.getItem(LS_GREET) || 'time-name';
+    const name = userFirstName();
+    const t = greetingFor(new Date());
+    let text;
+    if (mode === 'name' && name) text = 'Привет, ' + name;
+    else if (mode === 'time-name' && name) text = t + ', ' + name;
+    else text = t;
+    document.getElementById('hello').textContent = text;
+  }
+  renderGreeting();
+  // Click on the greeting cycles through modes — no need for a settings field.
+  document.getElementById('hello').addEventListener('click', () => {
+    const order = ['time','time-name','name'];
+    const cur = localStorage.getItem(LS_GREET) || 'time-name';
+    const next = order[(order.indexOf(cur) + 1) % order.length];
+    localStorage.setItem(LS_GREET, next);
+    renderGreeting();
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  });
+  // Re-render every minute so 11:59→12:00 picks up the new greeting.
+  setInterval(renderGreeting, 60000);
+
+  async function api(path, opts) {
+    opts = opts || {};
+    const headers = Object.assign({
+      'X-Telegram-Init-Data': initData,
+      'Content-Type': 'application/json',
+    }, opts.headers || {});
+    const resp = await fetch(path, Object.assign({}, opts, { headers: headers }));
+    if (!resp.ok) {
+      const t = await resp.text();
+      throw new Error(resp.status + ': ' + t.slice(0, 200));
+    }
+    return await resp.json();
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  const tabs = {};
+
+  function taskRow(t, opts) {
+    const done = t.status === 'done';
+    const draggable = opts && opts.draggable;
+    return (
+      '<div class="row task ' + (draggable ? 'draggable' : '') + '" ' +
+        (draggable ? 'draggable="true" ' : '') +
+        'data-task-id="' + t.id + '" data-task-scope="' + (t.scope || '') + '">' +
+        '<div class="left">' +
+          (draggable ? '<div class="drag-handle" title="зажми чтобы перетащить">⋮⋮</div>' : '') +
+          '<button class="check sq ' + (done ? 'done' : '') + '" data-toggle-task="' + t.id + '">' +
+            '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' +
+          '</button>' +
+          '<div class="title ' + (done ? 'done' : '') + '" data-task-edit="' + t.id + '">' + escapeHtml(t.title) + '</div>' +
+        '</div>' +
+        (draggable
+          ? '<div class="right"><button class="iconbtn-mini" data-task-cancel="' + t.id + '" title="удалить">' +
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v1H4v2h1v13a2 2 0 002 2h10a2 2 0 002-2V6h1V4h-5V3H9zm2 5h2v9h-2V8zm-4 0h2v9H7V8zm8 0h2v9h-2V8z"/></svg>' +
+            '</button></div>'
+          : '') +
+      '</div>'
+    );
+  }
+
+  function tasksBlock(items, emptyText, opts) {
+    if (!items || !items.length) return '<div class="empty">' + emptyText + '</div>';
+    return items.map(t => taskRow(t, opts)).join('');
+  }
+
+  tabs.today = async () => {
+    const data = await api('/api/today');
+    const dailyTasks = tasksBlock(data.daily_tasks, 'на сегодня задач нет');
+    const weeklyTasks = tasksBlock(data.weekly_tasks, 'на неделю задач нет');
+    const reminderRows = (data.reminders || []).map(r =>
+      '<div class="row" data-rem-id="' + r.id + '">' +
+        '<div class="left">' +
+          '<div class="title">' + escapeHtml(r.text) + '</div>' +
+          '<div class="sub">' + escapeHtml(r.fires_at) + (r.repeat ? ' · ' + escapeHtml(r.repeat) : '') + '</div>' +
+        '</div>' +
+        '<div class="right">' +
+          '<button class="iconbtn" data-cancel-reminder="' + r.id + '">отмена</button>' +
+        '</div>' +
+      '</div>'
+    ).join('');
+    const reminders = reminderRows
+      ? reminderRows + ((data.reminders.length > 1)
+          ? '<div class="row" style="border:0;justify-content:flex-end;padding-top:6px"><button class="iconbtn" data-cancel-all-reminders="1">отменить все</button></div>'
+          : '')
+      : '<div class="empty">нет активных напоминаний</div>';
+
+    const actions = (data.action_reminders || []).map(r =>
+      '<div class="row">' +
+        '<div class="left">' +
+          '<div class="title">когда «' + escapeHtml(r.trigger) + '» → ' + escapeHtml(r.message) + '</div>' +
+        '</div>' +
+        '<div class="right">' +
+          '<button class="iconbtn" data-cancel-action="' + r.id + '">отмена</button>' +
+        '</div>' +
+      '</div>'
+    ).join('') || '<div class="empty">нет триггеров</div>';
+
+    const habits = (data.habits || []).map(h =>
+      '<div class="row" data-habit-id="' + h.id + '">' +
+        '<div class="left">' +
+          '<div class="title">' + escapeHtml(h.name) +
+            (h.streak >= 2 ? ' <span class="streak" title="серия дней подряд">🔥' + h.streak + '</span>' : '') +
+          '</div>' +
+          '<div class="sub">' + h.last_7_done + '/7 за неделю</div>' +
+        '</div>' +
+        '<div class="right">' +
+          '<button class="check ' + (h.done_today ? 'done' : '') + '" data-log-habit="' + h.id + '">' +
+            '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' +
+          '</button>' +
+        '</div>' +
+      '</div>'
+    ).join('') || '<div class="empty">привычек нет</div>';
+
+    const meals = data.meals_total || { kcal: 0, p: 0, f: 0, c: 0 };
+    return (
+      '<div class="section"><h2>Задачи на сегодня</h2>' + dailyTasks + '</div>' +
+      '<div class="section"><h2>На этой неделе</h2>' + weeklyTasks + '</div>' +
+      '<div class="section"><h2>Напоминания</h2>' + reminders + '</div>' +
+      '<div class="section"><h2>Жду событий</h2>' + actions + '</div>' +
+      '<div class="section"><h2>Привычки сегодня</h2>' + habits + '</div>' +
+      '<div class="section"><h2>Питание сегодня</h2>' +
+        '<div class="macro-grid">' +
+          '<div class="macro"><div class="num">' + (meals.kcal || 0) + '</div><div class="lbl">ккал</div></div>' +
+          '<div class="macro"><div class="num">' + (meals.p || 0) + '</div><div class="lbl">белк</div></div>' +
+          '<div class="macro"><div class="num">' + (meals.f || 0) + '</div><div class="lbl">жир</div></div>' +
+          '<div class="macro"><div class="num">' + (meals.c || 0) + '</div><div class="lbl">углев</div></div>' +
+        '</div>' +
+      '</div>'
+    );
+  };
+
+  tabs.habits = async () => {
+    const data = await api('/api/habits');
+    if (!data.habits || !data.habits.length) return '<div class="section"><div class="empty">привычек нет. напиши боту «добавь привычку ...» чтобы создать.</div></div>';
+    const today = data.today;
+    const week = data.week_dates || []; // Mon..Sun
+    const dowLabels = ['пн','вт','ср','чт','пт','сб','вс'];
+    const rows = data.habits.map(h => {
+      const set = new Set(h.week_done || []);
+      const cells = week.map((d, i) => {
+        const done = set.has(d);
+        const isToday = d === today;
+        const isFuture = d > today;
+        const cls = 'cell ' + (done ? 'done' : (isFuture ? 'future' : 'miss')) + (isToday ? ' today' : '');
+        return (
+          '<div class="' + cls + '" data-habit-cell="' + h.id + '" data-cell-date="' + d + '" title="' + d + (done ? ' ✓' : (isFuture ? '' : ' пропуск')) + '">' +
+            '<div class="cell-dow">' + dowLabels[i] + '</div>' +
+          '</div>'
+        );
+      }).join('');
+      const streak = h.streak || 0;
+      const weekCount = (h.week_done || []).length;
+      return (
+        '<div class="habit-card" data-habit-id="' + h.id + '" data-streak="' + streak + '" data-month-count="' + (h.last_30_count || 0) + '">' +
+          '<div class="habit-head">' +
+            '<div class="habit-title">' + escapeHtml(h.name) +
+              '<span class="streak" style="display:' + (streak >= 2 ? 'inline-block' : 'none') + '">🔥' + streak + '</span>' +
+            '</div>' +
+            '<div class="habit-actions">' +
+              '<button class="iconbtn-mini" data-delete-habit="' + h.id + '" title="удалить">' +
+                '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v1H4v2h1v13a2 2 0 002 2h10a2 2 0 002-2V6h1V4h-5V3H9zm2 5h2v9h-2V8zm-4 0h2v9H7V8zm8 0h2v9h-2V8z"/></svg>' +
+              '</button>' +
+              '<button class="check ' + (h.done_today ? 'done' : '') + '" data-log-habit="' + h.id + '">' +
+                '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="cells">' + cells + '</div>' +
+          '<div class="habit-foot">' +
+            '<span class="hf-week">за неделю: <b>' + weekCount + '/7</b></span>' +
+            '<span class="hf-month">за 30 дн: <b>' + (h.last_30_count || 0) + '</b></span>' +
+            '<span class="hf-streak" style="display:' + (streak ? 'inline' : 'none') + '">стрик: <b>' + streak + '</b></span>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+    return '<div class="section">' + rows + '</div>';
+  };
+
+  tabs.tasks = async () => {
+    const data = await api('/api/tasks');
+    const sections = [];
+    const dragOpt = { draggable: true };
+    const tagDaily = (data.daily || []).map(t => Object.assign({}, t, { scope: 'daily' }));
+    const tagWeekly = (data.weekly || []).map(t => Object.assign({}, t, { scope: 'weekly' }));
+    const tagSomeday = (data.someday || []).map(t => Object.assign({}, t, { scope: 'someday' }));
+    sections.push(
+      '<div class="section" data-task-list="daily"><h2>На сегодня</h2>' +
+        tasksBlock(tagDaily, 'на сегодня задач нет', dragOpt) +
+      '</div>'
+    );
+    sections.push(
+      '<div class="section" data-task-list="weekly"><h2>На эту неделю</h2>' +
+        tasksBlock(tagWeekly, 'на неделю задач нет', dragOpt) +
+      '</div>'
+    );
+    if (tagSomeday.length) {
+      sections.push(
+        '<div class="section" data-task-list="someday"><h2>Когда-нибудь</h2>' +
+          tasksBlock(tagSomeday, '', dragOpt) +
+        '</div>'
+      );
+    }
+    if (data.goals && data.goals.length) {
+      const goals = data.goals.map(g =>
+        '<div class="row">' +
+          '<div class="left" style="width:100%">' +
+            '<div class="title">' + escapeHtml(g.title) + ' <span class="pill">' + escapeHtml(g.horizon) + '</span></div>' +
+            (g.description ? '<div class="sub">' + escapeHtml(g.description) + '</div>' : '') +
+            '<div class="sub">' + g.progress + '%' + (g.target_date ? ' · до ' + escapeHtml(g.target_date) : '') + '</div>' +
+            '<div class="progress"><div style="width:' + g.progress + '%"></div></div>' +
+          '</div>' +
+        '</div>'
+      ).join('');
+      sections.push('<div class="section"><h2>Долгосрочные цели</h2>' + goals + '</div>');
+    }
+    return sections.join('');
+  };
+
+  tabs.workouts = async () => {
+    const [data, history] = await Promise.all([api('/api/exercises'), api('/api/workouts')]);
+    const items = data.exercises || [];
+    const today = data.date;
+
+    const exRows = items.map(e =>
+      '<div class="ex-row" data-ex-id="' + e.id + '">' +
+        '<div class="ex-name" data-ex-edit-name="' + e.id + '">' + escapeHtml(e.name) + '</div>' +
+        '<div class="ex-controls">' +
+          '<button class="ex-btn minus" data-ex-bump="' + e.id + '" data-delta="-' + e.step + '">−</button>' +
+          '<div class="ex-reps" data-ex-reps="' + e.id + '">' + e.reps + '</div>' +
+          '<button class="ex-btn plus" data-ex-bump="' + e.id + '" data-delta="' + e.step + '">+</button>' +
+        '</div>' +
+        '<div class="ex-meta">' +
+          '<button class="ex-step" data-ex-step="' + e.id + '" title="шаг кнопок ±">шаг ' + e.step + '</button>' +
+          '<button class="iconbtn-mini" data-ex-delete="' + e.id + '" title="удалить">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v1H4v2h1v13a2 2 0 002 2h10a2 2 0 002-2V6h1V4h-5V3H9zm2 5h2v9h-2V8zm-4 0h2v9H7V8zm8 0h2v9h-2V8z"/></svg>' +
+          '</button>' +
+        '</div>' +
+      '</div>'
+    ).join('');
+
+    const empty = !items.length
+      ? '<div class="empty">сегодня упражнений нет. добавь любое — голосом «добавь упражнение отжимания» или кнопкой ниже.</div>'
+      : '';
+
+    const addBlock =
+      '<div class="ex-add">' +
+        '<input type="text" id="newExName" placeholder="название упражнения (напр. отжимания)" maxlength="60"/>' +
+        '<input type="number" id="newExStep" placeholder="шаг" min="1" max="1000" value="1" style="width:60px"/>' +
+        '<button class="iconbtn primary" id="addExBtn">добавить</button>' +
+      '</div>';
+
+    const copyPrev = !items.length
+      ? '<div class="row" style="border:0;justify-content:flex-end"><button class="iconbtn" id="copyPrevBtn">↺ повторить вчерашнюю</button></div>'
+      : '';
+
+    let totalReps = items.reduce((acc, e) => acc + (e.reps || 0), 0);
+
+    const histBlock = (history.workouts && history.workouts.length)
+      ? '<div class="section"><h2>Дневник тренировок (свободный текст)</h2>' +
+          history.workouts.map(w =>
+            '<div class="row" data-workout-row="' + w.id + '">' +
+              '<div class="left">' +
+                '<div class="title">' + escapeHtml(w.summary) + '</div>' +
+                '<div class="sub">' + escapeHtml(w.date) + '</div>' +
+              '</div>' +
+              '<div class="right">' +
+                '<button class="iconbtn-mini" data-workout-delete="' + w.id + '" title="удалить">' +
+                  '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v1H4v2h1v13a2 2 0 002 2h10a2 2 0 002-2V6h1V4h-5V3H9zm2 5h2v9h-2V8zm-4 0h2v9H7V8zm8 0h2v9h-2V8z"/></svg>' +
+                '</button>' +
+              '</div>' +
+            '</div>'
+          ).join('') +
+        '</div>'
+      : '';
+
+    return (
+      '<div class="section">' +
+        '<h2>Сегодня · ' + escapeHtml(today) + (totalReps ? ' · всего ' + totalReps : '') + '</h2>' +
+        empty + exRows + copyPrev +
+        addBlock +
+      '</div>' +
+      histBlock
+    );
+  };
+
+  tabs.food = async () => {
+    const data = await api('/api/meals');
+    const t = data.total || { kcal: 0, p: 0, f: 0, c: 0 };
+    const items = data.meals || [];
+
+    const mealRow = (m) =>
+      '<div class="meal-row" data-meal-id="' + m.id + '">' +
+        '<div class="meal-head">' +
+          '<div class="meal-name" data-meal-edit-name="' + m.id + '">' + escapeHtml(m.description) + '</div>' +
+          '<button class="iconbtn-mini" data-meal-delete="' + m.id + '" title="удалить">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3v1H4v2h1v13a2 2 0 002 2h10a2 2 0 002-2V6h1V4h-5V3H9zm2 5h2v9h-2V8zm-4 0h2v9H7V8zm8 0h2v9h-2V8z"/></svg>' +
+          '</button>' +
+        '</div>' +
+        '<div class="meal-macros">' +
+          ['kcal','protein_g','fat_g','carbs_g'].map(k => {
+            const labels = { kcal: 'ккал', protein_g: 'Б', fat_g: 'Ж', carbs_g: 'У' };
+            const steps  = { kcal: 10,    protein_g: 1,   fat_g: 1,   carbs_g: 1   };
+            const val = m[k] == null ? 0 : m[k];
+            return (
+              '<div class="meal-macro">' +
+                '<div class="meal-macro-lbl">' + labels[k] + '</div>' +
+                '<button class="ex-btn minus" data-meal-bump="' + m.id + '" data-field="' + k + '" data-delta="-' + steps[k] + '">−</button>' +
+                '<div class="meal-macro-val" data-meal-val="' + m.id + '-' + k + '">' + val + '</div>' +
+                '<button class="ex-btn plus" data-meal-bump="' + m.id + '" data-field="' + k + '" data-delta="' + steps[k] + '">+</button>' +
+              '</div>'
+            );
+          }).join('') +
+        '</div>' +
+      '</div>';
+
+    const meals = items.map(mealRow).join('') ||
+      '<div class="empty">сегодня ничего не записано. добавь голосом («съел омлет 350 ккал») или кнопкой ниже.</div>';
+
+    const addBlock =
+      '<div class="ex-add meal-add">' +
+        '<input type="text" id="newMealName" placeholder="что съел (напр. омлет с тостом)" maxlength="80"/>' +
+        '<input type="number" id="newMealKcal" placeholder="ккал" min="0" max="9999" style="width:70px"/>' +
+        '<button class="iconbtn primary" id="addMealBtn">добавить</button>' +
+      '</div>';
+
+    return (
+      '<div class="section">' +
+        '<h2>Сегодня всего</h2>' +
+        '<div class="macro-grid">' +
+          '<div class="macro"><div class="num" id="meal-tot-kcal">' + (t.kcal||0) + '</div><div class="lbl">ккал</div></div>' +
+          '<div class="macro"><div class="num" id="meal-tot-p">' + (t.p||0) + '</div><div class="lbl">белк</div></div>' +
+          '<div class="macro"><div class="num" id="meal-tot-f">' + (t.f||0) + '</div><div class="lbl">жир</div></div>' +
+          '<div class="macro"><div class="num" id="meal-tot-c">' + (t.c||0) + '</div><div class="lbl">углев</div></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="section"><h2>Приёмы пищи</h2>' + meals + addBlock + '</div>'
+    );
+  };
+
+  let currentTab = 'today';
+  let firstRender = true;
+  // Per-tab cache so re-opening a tab is instant; we still revalidate in the background.
+  const tabCache = Object.create(null);
+  const TAB_TTL_MS = 8000;
+  function invalidateAllTabs() {
+    for (const k of Object.keys(tabCache)) delete tabCache[k];
+  }
+  function invalidateOtherTabs() {
+    for (const k of Object.keys(tabCache)) if (k !== currentTab) delete tabCache[k];
+  }
+  async function render(name) {
+    const wasTab = currentTab;
+    currentTab = name;
+    document.querySelectorAll('.tabs button').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === name);
+    });
+    const cached = tabCache[name];
+    if (cached) {
+      main.innerHTML = cached.html;
+    } else if (firstRender) {
+      main.innerHTML = '<div class="loading">Загружаю…</div>';
+    }
+    firstRender = false;
+    // If cache is fresh enough, skip refetch
+    if (cached && (Date.now() - cached.ts) < TAB_TTL_MS) return;
+    try {
+      const html = await tabs[name]();
+      tabCache[name] = { html, ts: Date.now() };
+      // Only swap if the user is still on this tab
+      if (currentTab === name) main.innerHTML = html;
+    } catch (e) {
+      if (!cached && currentTab === name) {
+        main.innerHTML = '<div class="err">' + escapeHtml((e && e.message) || String(e)) + '</div>';
+      }
+    }
+  }
+
+  /** Same-tab silent refresh: doesn't show «Загружаю…», just swaps content when ready. */
+  async function silentRefresh() {
+    try {
+      const html = await tabs[currentTab]();
+      tabCache[currentTab] = { html, ts: Date.now() };
+      main.innerHTML = html;
+    } catch (e) { /* keep current view */ }
+  }
+
+  document.querySelectorAll('.tabs button').forEach(b => {
+    b.addEventListener('click', () => {
+      firstRender = false; // we're already showing something
+      render(b.dataset.tab);
+    });
+  });
+
+  document.body.addEventListener('click', async (ev) => {
+    const target = ev.target instanceof Element ? ev.target.closest('[data-log-habit],[data-delete-habit],[data-cancel-reminder],[data-cancel-all-reminders],[data-cancel-action],[data-toggle-task],[data-task-edit],[data-task-cancel],[data-ex-bump],[data-ex-delete],[data-ex-step],[data-ex-edit-name],[data-workout-delete],[data-meal-bump],[data-meal-delete],[data-meal-edit-name],#addExBtn,#copyPrevBtn,#addMealBtn') : null;
+    if (!target) return;
+
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+
+    // -------- Optimistic toggle of task --------
+    if (target.dataset.toggleTask) {
+      const row = target.closest('.row.task');
+      const checkBtn = target;
+      const titleEl = row && row.querySelector('.title');
+      const wasDone = checkBtn.classList.toggle('done');
+      if (titleEl) titleEl.classList.toggle('done', wasDone);
+      try {
+        await api('/api/tasks/toggle', { method: 'POST', body: JSON.stringify({ id: parseInt(target.dataset.toggleTask, 10) }) });
+      } catch (e) { silentRefresh(); }
+      return;
+    }
+
+    // -------- Inline edit of task --------
+    if (target.dataset.taskEdit) {
+      const id = parseInt(target.dataset.taskEdit, 10);
+      const titleEl = target;
+      if (titleEl.contentEditable === 'true') return;
+      titleEl.contentEditable = 'true';
+      titleEl.focus();
+      const range = document.createRange();
+      range.selectNodeContents(titleEl);
+      const sel = window.getSelection();
+      if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      const finish = async () => {
+        titleEl.contentEditable = 'false';
+        titleEl.removeEventListener('blur', finish);
+        titleEl.removeEventListener('keydown', onKey);
+        const newTitle = titleEl.textContent.trim();
+        if (!newTitle) { silentRefresh(); return; }
+        try {
+          await api('/api/tasks/update', { method: 'POST', body: JSON.stringify({ id, title: newTitle }) });
+        } catch (e) { alert('Ошибка: ' + e.message); silentRefresh(); }
+      };
+      const onKey = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+        if (e.key === 'Escape') { titleEl.blur(); silentRefresh(); }
+      };
+      titleEl.addEventListener('blur', finish);
+      titleEl.addEventListener('keydown', onKey);
+      return;
+    }
+
+    // -------- Delete task --------
+    if (target.dataset.taskCancel) {
+      if (!confirm('Удалить задачу?')) return;
+      const id = parseInt(target.dataset.taskCancel, 10);
+      const row = target.closest('.row.task');
+      if (row) { row.style.transition = 'opacity .2s ease, transform .2s ease'; row.style.opacity = '0'; row.style.transform = 'translateX(-12px)'; }
+      try {
+        await api('/api/tasks/cancel', { method: 'POST', body: JSON.stringify({ id }) });
+        if (row) setTimeout(() => row.remove(), 220);
+      } catch (e) { if (row) { row.style.opacity = '1'; row.style.transform = ''; } alert('Ошибка: ' + e.message); }
+      return;
+    }
+
+    // -------- Optimistic toggle of habit (no full re-render) --------
+    if (target.dataset.logHabit) {
+      const checkBtn = target.closest('[data-log-habit]');
+      const card = checkBtn.closest('.habit-card');
+      const willBeDone = !checkBtn.classList.contains('done');
+      checkBtn.classList.toggle('done', willBeDone);
+      const todayCell = card && card.querySelector('.cell.today');
+      if (todayCell) {
+        todayCell.classList.remove('miss', 'done');
+        todayCell.classList.add(willBeDone ? 'done' : 'miss');
+        todayCell.classList.add('bump');
+        setTimeout(() => todayCell.classList.remove('bump'), 200);
+      }
+      // Patch counters locally
+      if (card) {
+        const wkEl = card.querySelector('.hf-week b');
+        const monEl = card.querySelector('.hf-month b');
+        const stkEl = card.querySelector('.hf-streak b');
+        const stkBadge = card.querySelector('.streak');
+        const stkWrap = card.querySelector('.hf-streak');
+        if (wkEl) {
+          const cur = parseInt(wkEl.textContent, 10) || 0;
+          wkEl.textContent = (cur + (willBeDone ? 1 : -1)) + '/7';
+        }
+        if (monEl) {
+          const cur = parseInt(monEl.textContent, 10) || 0;
+          monEl.textContent = String(cur + (willBeDone ? 1 : -1));
+        }
+        // Streak: only changes if today was the boundary
+        let streak = parseInt(card.dataset.streak || '0', 10);
+        streak = willBeDone ? streak + 1 : Math.max(0, streak - 1);
+        card.dataset.streak = String(streak);
+        if (stkEl) stkEl.textContent = String(streak);
+        if (stkBadge) {
+          stkBadge.textContent = '🔥' + streak;
+          stkBadge.style.display = streak >= 2 ? 'inline-block' : 'none';
+        }
+        if (stkWrap) stkWrap.style.display = streak ? 'inline' : 'none';
+      }
+      try {
+        await api('/api/habits/log', { method: 'POST', body: JSON.stringify({ habit_id: parseInt(target.dataset.logHabit, 10) }) });
+      } catch (e) {
+        // revert on failure
+        checkBtn.classList.toggle('done', !willBeDone);
+        if (todayCell) {
+          todayCell.classList.remove('done', 'miss');
+          todayCell.classList.add(!willBeDone ? 'done' : 'miss');
+        }
+        alert('Ошибка: ' + e.message);
+      }
+      return;
+    }
+
+    // -------- Delete habit --------
+    if (target.dataset.deleteHabit) {
+      if (!confirm('Удалить привычку?')) return;
+      const id = parseInt(target.dataset.deleteHabit, 10);
+      const card = target.closest('.habit-card');
+      if (card) card.classList.add('removing');
+      try {
+        await api('/api/habits/delete', { method: 'POST', body: JSON.stringify({ habit_id: id }) });
+        if (card) setTimeout(() => card.remove(), 250);
+      } catch (e) {
+        if (card) card.classList.remove('removing');
+        alert('Ошибка: ' + e.message);
+      }
+      return;
+    }
+
+    // -------- Cancel single reminder (with fade-out) --------
+    if (target.dataset.cancelReminder) {
+      const id = parseInt(target.dataset.cancelReminder, 10);
+      const row = target.closest('.row');
+      if (row) { row.style.transition = 'opacity .2s ease'; row.style.opacity = '0.0'; }
+      try {
+        await api('/api/reminders/cancel', { method: 'POST', body: JSON.stringify({ id: id }) });
+        if (row) row.remove();
+      } catch (e) { if (row) row.style.opacity = '1'; alert('Ошибка: ' + e.message); }
+      return;
+    }
+    if (target.dataset.cancelAllReminders) {
+      try {
+        await api('/api/reminders/cancel_all', { method: 'POST' });
+        silentRefresh();
+      } catch (e) { alert('Ошибка: ' + e.message); }
+      return;
+    }
+    if (target.dataset.cancelAction) {
+      const id = parseInt(target.dataset.cancelAction, 10);
+      const row = target.closest('.row');
+      if (row) { row.style.transition = 'opacity .2s ease'; row.style.opacity = '0.0'; }
+      try {
+        await api('/api/action_reminders/cancel', { method: 'POST', body: JSON.stringify({ id: id }) });
+        if (row) row.remove();
+      } catch (e) { if (row) row.style.opacity = '1'; alert('Ошибка: ' + e.message); }
+      return;
+    }
+
+    // -------- Exercise: bump (+/-) --------
+    if (target.dataset.exBump) {
+      const id = parseInt(target.dataset.exBump, 10);
+      const delta = parseInt(target.dataset.delta, 10) || 0;
+      const row = target.closest('.ex-row');
+      const repsEl = row && row.querySelector('[data-ex-reps]');
+      if (!repsEl) return;
+      const cur = parseInt(repsEl.textContent, 10) || 0;
+      const next = Math.max(0, cur + delta);
+      repsEl.textContent = String(next);
+      repsEl.classList.add('bump');
+      setTimeout(() => repsEl.classList.remove('bump'), 200);
+      try {
+        await api('/api/exercises/update', { method: 'POST', body: JSON.stringify({ id, reps: next }) });
+      } catch (e) { repsEl.textContent = String(cur); alert('Ошибка: ' + e.message); }
+      return;
+    }
+
+    // -------- Exercise: delete --------
+    if (target.dataset.exDelete) {
+      if (!confirm('Удалить упражнение?')) return;
+      const id = parseInt(target.dataset.exDelete, 10);
+      const row = target.closest('.ex-row');
+      if (row) row.classList.add('removing');
+      try {
+        await api('/api/exercises/delete', { method: 'POST', body: JSON.stringify({ id }) });
+        if (row) setTimeout(() => row.remove(), 250);
+      } catch (e) { if (row) row.classList.remove('removing'); alert('Ошибка: ' + e.message); }
+      return;
+    }
+
+    // -------- Exercise: change step (cycles 1→5→10→25→1) --------
+    if (target.dataset.exStep) {
+      const id = parseInt(target.dataset.exStep, 10);
+      const cur = parseInt(target.textContent.replace(/\D/g, ''), 10) || 1;
+      const cycle = [1, 2, 5, 10, 25, 50];
+      const next = cycle[(cycle.indexOf(cur) + 1) % cycle.length] || 1;
+      target.textContent = 'шаг ' + next;
+      const row = target.closest('.ex-row');
+      if (row) {
+        const minus = row.querySelector('.ex-btn.minus');
+        const plus = row.querySelector('.ex-btn.plus');
+        if (minus) minus.dataset.delta = String(-next);
+        if (plus) plus.dataset.delta = String(next);
+      }
+      try {
+        await api('/api/exercises/update', { method: 'POST', body: JSON.stringify({ id, step: next }) });
+      } catch (e) { alert('Ошибка: ' + e.message); }
+      return;
+    }
+
+    // -------- Exercise: edit name --------
+    if (target.dataset.exEditName) {
+      const id = parseInt(target.dataset.exEditName, 10);
+      target.contentEditable = 'true';
+      target.focus();
+      // select all
+      const range = document.createRange();
+      range.selectNodeContents(target);
+      const sel = window.getSelection();
+      if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      const finish = async () => {
+        target.contentEditable = 'false';
+        target.removeEventListener('blur', finish);
+        target.removeEventListener('keydown', onKey);
+        const newName = target.textContent.trim();
+        if (!newName) { silentRefresh(); return; }
+        try {
+          await api('/api/exercises/update', { method: 'POST', body: JSON.stringify({ id, name: newName }) });
+        } catch (e) { alert('Ошибка: ' + e.message); silentRefresh(); }
+      };
+      const onKey = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); target.blur(); }
+        if (e.key === 'Escape') { target.blur(); silentRefresh(); }
+      };
+      target.addEventListener('blur', finish);
+      target.addEventListener('keydown', onKey);
+      return;
+    }
+
+    // -------- Exercise: add new --------
+    if (target.id === 'addExBtn') {
+      const nameInput = document.getElementById('newExName');
+      const stepInput = document.getElementById('newExStep');
+      if (!nameInput) return;
+      const name = nameInput.value.trim();
+      const step = Math.max(1, parseInt(stepInput && stepInput.value, 10) || 1);
+      if (!name) { nameInput.focus(); return; }
+      try {
+        await api('/api/exercises/create', { method: 'POST', body: JSON.stringify({ name, step }) });
+        silentRefresh();
+      } catch (e) { alert('Ошибка: ' + e.message); }
+      return;
+    }
+
+    // -------- Workout history: delete --------
+    if (target.dataset.workoutDelete) {
+      if (!confirm('Удалить запись из дневника?')) return;
+      const id = parseInt(target.dataset.workoutDelete, 10);
+      const row = target.closest('[data-workout-row]');
+      if (row) { row.style.transition = 'opacity .2s ease'; row.style.opacity = '0'; }
+      try {
+        await api('/api/workouts/delete', { method: 'POST', body: JSON.stringify({ id }) });
+        if (row) setTimeout(() => row.remove(), 220);
+      } catch (e) { if (row) row.style.opacity = '1'; alert('Ошибка: ' + e.message); }
+      return;
+    }
+
+    // -------- Exercise: copy from previous day --------
+    if (target.id === 'copyPrevBtn') {
+      try {
+        await api('/api/exercises/copy_prev', { method: 'POST', body: JSON.stringify({}) });
+        silentRefresh();
+      } catch (e) { alert('Ошибка: ' + e.message); }
+      return;
+    }
+
+    // -------- Meal: add new --------
+    if (target.id === 'addMealBtn') {
+      const nameInput = document.getElementById('newMealName');
+      const kcalInput = document.getElementById('newMealKcal');
+      if (!nameInput) return;
+      const description = nameInput.value.trim();
+      if (!description) { nameInput.focus(); return; }
+      const kcal = kcalInput && kcalInput.value ? parseInt(kcalInput.value, 10) : undefined;
+      try {
+        await api('/api/meals/create', { method: 'POST', body: JSON.stringify({
+          description, kcal: typeof kcal === 'number' && !isNaN(kcal) ? kcal : undefined,
+        }) });
+        invalidateAllTabs();
+        silentRefresh();
+      } catch (e) { alert('Ошибка: ' + e.message); }
+      return;
+    }
+
+    // -------- Meal: ± macro bump --------
+    if (target.dataset.mealBump) {
+      const id = parseInt(target.dataset.mealBump, 10);
+      const field = target.dataset.field;
+      const delta = parseInt(target.dataset.delta, 10);
+      const valEl = document.querySelector('[data-meal-val="' + id + '-' + field + '"]');
+      if (!valEl) return;
+      let cur = parseInt(valEl.textContent, 10) || 0;
+      const next = Math.max(0, cur + delta);
+      // Optimistic update.
+      valEl.textContent = next;
+      valEl.classList.remove('bump'); void valEl.offsetWidth; valEl.classList.add('bump');
+      // Optimistic total update.
+      const totMap = { kcal: 'meal-tot-kcal', protein_g: 'meal-tot-p', fat_g: 'meal-tot-f', carbs_g: 'meal-tot-c' };
+      const totEl = document.getElementById(totMap[field]);
+      if (totEl) totEl.textContent = (parseInt(totEl.textContent, 10) || 0) + (next - cur);
+      try {
+        await api('/api/meals/update', { method: 'POST', body: JSON.stringify({ id, [field]: next }) });
+        invalidateAllTabs();
+      } catch (e) {
+        valEl.textContent = cur;
+        if (totEl) totEl.textContent = (parseInt(totEl.textContent, 10) || 0) - (next - cur);
+        alert('Ошибка: ' + e.message);
+      }
+      return;
+    }
+
+    // -------- Meal: delete --------
+    if (target.dataset.mealDelete) {
+      const id = parseInt(target.dataset.mealDelete, 10);
+      if (!confirm('Удалить запись?')) return;
+      const row = target.closest('.meal-row');
+      if (row) row.classList.add('removing');
+      try {
+        await api('/api/meals/delete', { method: 'POST', body: JSON.stringify({ id }) });
+        if (row) setTimeout(() => row.remove(), 240);
+        invalidateAllTabs();
+        // Refresh once removal animation finishes (so totals re-sync).
+        setTimeout(silentRefresh, 280);
+      } catch (e) { if (row) row.classList.remove('removing'); alert('Ошибка: ' + e.message); }
+      return;
+    }
+
+    // -------- Meal: edit name inline --------
+    if (target.dataset.mealEditName && target.contentEditable !== 'true') {
+      const id = parseInt(target.dataset.mealEditName, 10);
+      const orig = target.textContent;
+      target.contentEditable = 'true';
+      target.focus();
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(target);
+      sel.removeAllRanges(); sel.addRange(range);
+      const finish = async () => {
+        target.contentEditable = 'false';
+        target.removeEventListener('blur', finish);
+        target.removeEventListener('keydown', onKey);
+        const newName = target.textContent.trim();
+        if (!newName) { silentRefresh(); return; }
+        if (newName === orig) return;
+        try {
+          await api('/api/meals/update', { method: 'POST', body: JSON.stringify({ id, description: newName }) });
+          invalidateAllTabs();
+        } catch (e) { alert('Ошибка: ' + e.message); silentRefresh(); }
+      };
+      const onKey = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); target.blur(); }
+        if (e.key === 'Escape') { target.textContent = orig; target.blur(); }
+      };
+      target.addEventListener('blur', finish);
+      target.addEventListener('keydown', onKey);
+      return;
+    }
+  });
+
+  // ---------- Task drag and drop ----------
+  let draggedRow = null;
+
+  document.body.addEventListener('dragstart', (ev) => {
+    const row = ev.target instanceof Element ? ev.target.closest('.row.task.draggable') : null;
+    if (!row) return;
+    draggedRow = row;
+    row.classList.add('dragging');
+    if (ev.dataTransfer) {
+      ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer.setData('text/plain', row.dataset.taskId || '');
+    }
+  });
+
+  document.body.addEventListener('dragend', () => {
+    if (draggedRow) draggedRow.classList.remove('dragging');
+    document.querySelectorAll('.drop-target-above,.drop-target-below').forEach(e => {
+      e.classList.remove('drop-target-above', 'drop-target-below');
+    });
+    draggedRow = null;
+  });
+
+  document.body.addEventListener('dragover', (ev) => {
+    if (!draggedRow) return;
+    const overRow = ev.target instanceof Element ? ev.target.closest('.row.task.draggable') : null;
+    if (!overRow || overRow === draggedRow) return;
+    if (overRow.dataset.taskScope !== draggedRow.dataset.taskScope) return;
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.drop-target-above,.drop-target-below').forEach(e => {
+      e.classList.remove('drop-target-above', 'drop-target-below');
+    });
+    const rect = overRow.getBoundingClientRect();
+    const after = (ev.clientY - rect.top) > rect.height / 2;
+    overRow.classList.add(after ? 'drop-target-below' : 'drop-target-above');
+  });
+
+  document.body.addEventListener('drop', async (ev) => {
+    if (!draggedRow) return;
+    const overRow = ev.target instanceof Element ? ev.target.closest('.row.task.draggable') : null;
+    if (!overRow || overRow === draggedRow) return;
+    if (overRow.dataset.taskScope !== draggedRow.dataset.taskScope) return;
+    ev.preventDefault();
+    const rect = overRow.getBoundingClientRect();
+    const after = (ev.clientY - rect.top) > rect.height / 2;
+    if (after) overRow.parentNode.insertBefore(draggedRow, overRow.nextSibling);
+    else overRow.parentNode.insertBefore(draggedRow, overRow);
+    document.querySelectorAll('.drop-target-above,.drop-target-below').forEach(e => {
+      e.classList.remove('drop-target-above', 'drop-target-below');
+    });
+    const scope = draggedRow.dataset.taskScope;
+    const section = draggedRow.closest('[data-task-list]');
+    if (!section) return;
+    const ids = Array.from(section.querySelectorAll('.row.task.draggable')).map(r => parseInt(r.dataset.taskId, 10));
+    try {
+      await api('/api/tasks/reorder', { method: 'POST', body: JSON.stringify({ scope, ordered_ids: ids }) });
+    } catch (e) { alert('Ошибка: ' + e.message); silentRefresh(); }
+  });
+
+  // ---------- Touch-based drag (mobile fallback) ----------
+  // Long-press on drag-handle -> follow finger -> swap rows in same scope.
+  let touchDragRow = null, touchDragScope = null, touchHoldTimer = null, touchActive = false;
+
+  function endTouchDrag(persist) {
+    if (touchHoldTimer) { clearTimeout(touchHoldTimer); touchHoldTimer = null; }
+    if (touchDragRow) {
+      touchDragRow.classList.remove('dragging');
+      touchDragRow.style.transform = '';
+      touchDragRow.style.zIndex = '';
+      touchDragRow.style.position = '';
+      touchDragRow.style.pointerEvents = '';
+      touchDragRow.style.background = '';
+      document.querySelectorAll('.drop-target-above,.drop-target-below').forEach(e => {
+        e.classList.remove('drop-target-above', 'drop-target-below');
+      });
+      if (persist) {
+        const section = touchDragRow.closest('[data-task-list]');
+        if (section) {
+          const ids = Array.from(section.querySelectorAll('.row.task.draggable')).map(r => parseInt(r.dataset.taskId, 10));
+          api('/api/tasks/reorder', { method: 'POST', body: JSON.stringify({ scope: touchDragScope, ordered_ids: ids }) }).catch(() => silentRefresh());
+        }
+      }
+    }
+    touchDragRow = null; touchDragScope = null; touchActive = false;
+  }
+
+  document.body.addEventListener('touchstart', (ev) => {
+    const handle = ev.target instanceof Element ? ev.target.closest('.drag-handle') : null;
+    if (!handle) return;
+    const row = handle.closest('.row.task.draggable');
+    if (!row) return;
+    touchHoldTimer = setTimeout(() => {
+      touchDragRow = row;
+      touchDragScope = row.dataset.taskScope;
+      touchActive = true;
+      row.classList.add('dragging');
+      if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    }, 250);
+  }, { passive: true });
+
+  document.body.addEventListener('touchmove', (ev) => {
+    if (!touchActive || !touchDragRow) {
+      if (touchHoldTimer) { clearTimeout(touchHoldTimer); touchHoldTimer = null; }
+      return;
+    }
+    ev.preventDefault();
+    const t = ev.touches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const overRow = el ? el.closest('.row.task.draggable') : null;
+    if (!overRow || overRow === touchDragRow) return;
+    if (overRow.dataset.taskScope !== touchDragScope) return;
+    const rect = overRow.getBoundingClientRect();
+    const after = (t.clientY - rect.top) > rect.height / 2;
+    if (after) overRow.parentNode.insertBefore(touchDragRow, overRow.nextSibling);
+    else overRow.parentNode.insertBefore(touchDragRow, overRow);
+  }, { passive: false });
+
+  document.body.addEventListener('touchend', () => endTouchDrag(touchActive), { passive: true });
+  document.body.addEventListener('touchcancel', () => endTouchDrag(false), { passive: true });
+
+  // ---------- Themes / wallpapers / accent / custom bg ----------
+  const THEMES = [
+    { id: 'tg',     name: 'Telegram',  swatch: '#5288c1' },
+    { id: 'mid',    name: 'Полночь',   swatch: '#0f1117' },
+    { id: 'light',  name: 'Светлая',   swatch: '#f5f6f8', dark: false },
+    { id: 'rose',   name: 'Роза',      swatch: '#1a0f15' },
+    { id: 'forest', name: 'Лес',       swatch: '#0e1a14' },
+    { id: 'ocean',  name: 'Океан',     swatch: '#0a1623' },
+    { id: 'sunset', name: 'Закат',     swatch: '#1c1108' },
+    { id: 'mono',   name: 'Моно',      swatch: '#0c0c0e' },
+    { id: 'lav',    name: 'Лаванда',   swatch: '#15102a' },
+    { id: 'mint',   name: 'Мята',      swatch: '#0a1a18' },
+    { id: 'sand',   name: 'Песок',     swatch: '#fbf6ee', dark: false },
+    { id: 'slate',  name: 'Сланец',    swatch: '#101418' },
+  ];
+  const WALLPAPERS = [
+    { id: 'none',  name: 'без обоев', bg: null },
+    { id: 'aurora',   name: 'aurora',   bg: 'linear-gradient(135deg, #1d2a4a 0%, #4f3b80 35%, #d05790 70%, #f4a866 100%)' },
+    { id: 'blueline', name: 'glow',     bg: 'radial-gradient(at 20% 0%, #2c4f7c 0%, transparent 55%), radial-gradient(at 90% 30%, #14333d 0%, transparent 60%), radial-gradient(at 60% 90%, #4c2a6a 0%, transparent 55%), #0d1320' },
+    { id: 'sunset',   name: 'sunset',   bg: 'linear-gradient(160deg, #2b1346 0%, #6e1a52 40%, #ea4a47 75%, #f8a046 100%)' },
+    { id: 'midnight', name: 'midnight', bg: 'radial-gradient(at 20% 30%, #102b4f 0%, transparent 60%), radial-gradient(at 80% 70%, #2a1747 0%, transparent 60%), #050a16' },
+    { id: 'forest',   name: 'forest',   bg: 'linear-gradient(160deg, #0b1e16 0%, #133b27 50%, #2d6a44 100%)' },
+    { id: 'rose',     name: 'rose',     bg: 'linear-gradient(135deg, #2c0d20 0%, #6d1a3d 50%, #d24a72 100%)' },
+    { id: 'paper',    name: 'paper',    bg: 'linear-gradient(180deg, #f8f5ee 0%, #ebe3d4 100%)' },
+    { id: 'mesh',     name: 'mesh',     bg: 'radial-gradient(at 30% 20%, #4f3b80 0%, transparent 50%), radial-gradient(at 80% 60%, #d05790 0%, transparent 45%), radial-gradient(at 10% 90%, #1d2a4a 0%, transparent 50%), #14182a' },
+    { id: 'cyber',    name: 'cyber',    bg: 'linear-gradient(125deg, #0e1f3a 0%, #1a2d5e 30%, #5b1a72 70%, #f23972 100%)' },
+    { id: 'olive',    name: 'olive',    bg: 'linear-gradient(180deg, #1a1f12 0%, #2c331a 60%, #5a6638 100%)' },
+    { id: 'ice',      name: 'ice',      bg: 'linear-gradient(160deg, #0e2638 0%, #2c577d 50%, #b6dbef 100%)' },
+    { id: 'plum',     name: 'plum',     bg: 'linear-gradient(135deg, #1b0d1f 0%, #3d1740 45%, #722b62 80%, #c45a8e 100%)' },
+    { id: 'peach',    name: 'peach',    bg: 'linear-gradient(180deg, #fde4d4 0%, #fcb597 60%, #f08667 100%)' },
+    { id: 'galaxy',   name: 'galaxy',   bg: 'radial-gradient(circle at 30% 40%, #6f24a4 0%, transparent 35%), radial-gradient(circle at 80% 70%, #2c4dbb 0%, transparent 35%), radial-gradient(circle at 60% 20%, #c64479 0%, transparent 30%), #07060e' },
+  ];
+  const LS_THEME = 'asis.theme';
+  const LS_BG = 'asis.bg';
+  const LS_ACCENT = 'asis.accent';
+  const LS_TEXT = 'asis.textcolor';
+  const LS_CUSTOM_BG = 'asis.bg.custom';
+  const body = document.body;
+
+  function lighten(hex, amt) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return hex;
+    let r = parseInt(m[1].slice(0,2), 16), g = parseInt(m[1].slice(2,4), 16), b = parseInt(m[1].slice(4,6), 16);
+    r = Math.max(0, Math.min(255, Math.round(r + amt)));
+    g = Math.max(0, Math.min(255, Math.round(g + amt)));
+    b = Math.max(0, Math.min(255, Math.round(b + amt)));
+    return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
+  }
+  function readableTextOn(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return '#fff';
+    const r = parseInt(m[1].slice(0,2), 16), g = parseInt(m[1].slice(2,4), 16), b = parseInt(m[1].slice(4,6), 16);
+    const lum = (0.299*r + 0.587*g + 0.114*b);
+    return lum > 165 ? '#101418' : '#ffffff';
+  }
+  function applyAppearance() {
+    const theme = localStorage.getItem(LS_THEME) || 'tg';
+    const bg = localStorage.getItem(LS_BG) || 'none';
+    const accent = localStorage.getItem(LS_ACCENT) || '';
+    const customBg = localStorage.getItem(LS_CUSTOM_BG) || '';
+    body.className = body.className
+      .replace(/\btheme-\w+\b/g, '')
+      .replace(/\bhas-bg\b/g, '')
+      .replace(/\bhas-custom-bg\b/g, '')
+      .trim();
+    body.classList.add('theme-' + theme);
+
+    if (customBg) {
+      body.classList.add('has-bg', 'has-custom-bg');
+      body.style.backgroundImage = 'url("' + customBg + '")';
+    } else {
+      const wp = WALLPAPERS.find(w => w.id === bg);
+      if (wp && wp.bg) {
+        body.classList.add('has-bg');
+        body.style.backgroundImage = wp.bg;
+      } else {
+        body.style.backgroundImage = '';
+      }
+    }
+
+    if (accent) {
+      body.style.setProperty('--button', accent);
+      body.style.setProperty('--button-text', readableTextOn(accent));
+      body.style.setProperty('--link', accent);
+    } else {
+      body.style.removeProperty('--button');
+      body.style.removeProperty('--button-text');
+      body.style.removeProperty('--link');
+    }
+
+    const textColor = localStorage.getItem(LS_TEXT) || '';
+    if (textColor) {
+      body.style.setProperty('--text', textColor);
+      // adjust hint to a desaturated, lower-contrast variant
+      body.style.setProperty('--hint', textColor + '99');
+    } else {
+      body.style.removeProperty('--text');
+      body.style.removeProperty('--hint');
+    }
+  }
+  function buildSettingsUi() {
+    const themesEl = document.getElementById('themes');
+    const wallsEl = document.getElementById('wallpapers');
+    const curTheme = localStorage.getItem(LS_THEME) || 'tg';
+    const curBg = localStorage.getItem(LS_BG) || 'none';
+    const curAccent = localStorage.getItem(LS_ACCENT) || '';
+    const customBg = localStorage.getItem(LS_CUSTOM_BG) || '';
+    themesEl.innerHTML = THEMES.map(t =>
+      '<div class="swatch ' + (curTheme === t.id ? 'active' : '') + '" data-theme="' + t.id + '"' +
+        ' style="background:' + t.swatch + ';' + (t.dark === false ? 'color:#222;text-shadow:none' : '') + '">' +
+        t.name +
+      '</div>'
+    ).join('');
+    wallsEl.innerHTML = WALLPAPERS.map(w =>
+      '<div class="swatch ' + (!customBg && curBg === w.id ? 'active' : '') + (w.bg ? '' : ' no-bg') + '" data-bg="' + w.id + '"' +
+        (w.bg ? ' style="background-image:' + w.bg + ';background-size:cover"' : '') + '>' +
+        w.name +
+      '</div>'
+    ).join('');
+    const ap = document.getElementById('accentPicker');
+    if (ap) ap.value = curAccent || '#5288c1';
+    const tp = document.getElementById('textPicker');
+    if (tp) {
+      const cur = localStorage.getItem(LS_TEXT);
+      tp.value = cur || (getComputedStyle(body).getPropertyValue('--text').trim() || '#ffffff');
+    }
+    document.getElementById('bgClearBtn').style.display = customBg ? 'inline-flex' : 'none';
+  }
+  applyAppearance();
+
+  document.getElementById('btn-settings').addEventListener('click', () => {
+    buildSettingsUi();
+    loadGroqKeyStatus();
+    document.getElementById('settings-modal').classList.add('show');
+  });
+  document.getElementById('settings-modal').addEventListener('click', (ev) => {
+    const t = ev.target;
+    if (t === ev.currentTarget) { ev.currentTarget.classList.remove('show'); return; }
+    const sw = t.closest && t.closest('.swatch');
+    if (!sw) return;
+    if (sw.dataset.theme) localStorage.setItem(LS_THEME, sw.dataset.theme);
+    if (sw.dataset.bg) {
+      localStorage.setItem(LS_BG, sw.dataset.bg);
+      localStorage.removeItem(LS_CUSTOM_BG);
+    }
+    applyAppearance();
+    buildSettingsUi();
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  });
+
+  // Accent picker
+  const accentPicker = document.getElementById('accentPicker');
+  let accentTimeout = null;
+  accentPicker.addEventListener('input', (ev) => {
+    if (accentTimeout) clearTimeout(accentTimeout);
+    accentTimeout = setTimeout(() => {
+      localStorage.setItem(LS_ACCENT, ev.target.value);
+      applyAppearance();
+    }, 50);
+  });
+  document.getElementById('accentReset').addEventListener('click', () => {
+    localStorage.removeItem(LS_ACCENT);
+    applyAppearance();
+    buildSettingsUi();
+  });
+
+  // Text color picker
+  const textPicker = document.getElementById('textPicker');
+  let textTimeout = null;
+  textPicker.addEventListener('input', (ev) => {
+    if (textTimeout) clearTimeout(textTimeout);
+    textTimeout = setTimeout(() => {
+      localStorage.setItem(LS_TEXT, ev.target.value);
+      applyAppearance();
+    }, 50);
+  });
+  document.getElementById('textReset').addEventListener('click', () => {
+    localStorage.removeItem(LS_TEXT);
+    applyAppearance();
+    buildSettingsUi();
+  });
+
+  // Custom bg upload — resize and store as base64 in localStorage
+  document.getElementById('bgUploadBtn').addEventListener('click', () => {
+    document.getElementById('bgFile').click();
+  });
+  document.getElementById('bgClearBtn').addEventListener('click', () => {
+    localStorage.removeItem(LS_CUSTOM_BG);
+    applyAppearance();
+    buildSettingsUi();
+  });
+  document.getElementById('bgFile').addEventListener('change', (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) { alert('Это не картинка'); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_W = 1200, MAX_H = 2000;
+        let w = img.width, h = img.height;
+        if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
+        if (h > MAX_H) { w = Math.round(w * MAX_H / h); h = MAX_H; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        let q = 0.78;
+        let dataUrl = canvas.toDataURL('image/jpeg', q);
+        // shrink further if too large
+        while (dataUrl.length > 3_500_000 && q > 0.3) {
+          q -= 0.1;
+          dataUrl = canvas.toDataURL('image/jpeg', q);
+        }
+        try {
+          localStorage.setItem(LS_CUSTOM_BG, dataUrl);
+          applyAppearance();
+          buildSettingsUi();
+        } catch (err) {
+          alert('Картинка слишком большая для локального хранилища. Попробуй меньшую.');
+        }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+    ev.target.value = '';
+  });
+
+  // ---------- Groq API Key settings ----------
+  const groqKeyInput = document.getElementById('groqKeyInput');
+  const groqKeySave = document.getElementById('groqKeySave');
+  const groqKeyStatus = document.getElementById('groqKeyStatus');
+
+  async function loadGroqKeyStatus() {
+    try {
+      const data = await api('/api/settings');
+      if (data.has_groq_key) {
+        groqKeyStatus.textContent = '✓ Ключ сохранён (' + data.groq_api_key_masked + ')';
+        groqKeyStatus.style.color = 'var(--green)';
+        groqKeyInput.placeholder = data.groq_api_key_masked || 'gsk_xxxxxxxxxxxxxxxx';
+      } else {
+        groqKeyStatus.textContent = '⚠ Ключ не задан — бот не будет отвечать';
+        groqKeyStatus.style.color = 'var(--danger)';
+      }
+    } catch (e) {
+      groqKeyStatus.textContent = '';
+    }
+  }
+
+  groqKeySave.addEventListener('click', async () => {
+    const key = groqKeyInput.value.trim();
+    if (!key) {
+      // Allow clearing
+      if (!confirm('Удалить сохранённый ключ?')) return;
+    }
+    groqKeySave.disabled = true;
+    groqKeySave.textContent = '…';
+    try {
+      await api('/api/settings', { method: 'POST', body: JSON.stringify({ groq_api_key: key }) });
+      groqKeyInput.value = '';
+      await loadGroqKeyStatus();
+      if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+    } catch (e) {
+      groqKeyStatus.textContent = 'Ошибка: ' + (e.message || e);
+      groqKeyStatus.style.color = 'var(--danger)';
+      if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+    } finally {
+      groqKeySave.disabled = false;
+      groqKeySave.textContent = 'сохранить';
+    }
+  });
+
+  // Load key status when settings are opened
+  const origBuildSettings = buildSettingsUi;
+  buildSettingsUi = function() {
+    origBuildSettings();
+    loadGroqKeyStatus();
+  };
+
+  render('today').then(() => {
+    // Background-prefetch other tabs so first switch is instant.
+    const others = ['tasks', 'habits', 'workouts', 'food'];
+    others.forEach((name, i) => {
+      setTimeout(async () => {
+        if (tabCache[name]) return;
+        try {
+          const html = await tabs[name]();
+          tabCache[name] = { html, ts: Date.now() };
+        } catch (_) { /* ignore */ }
+      }, 250 + i * 250);
+    });
+  });
+})();
+</script>
+</body>
+</html>
