@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "igor-assistant",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "rules": [
+    { "type": "Text", "globs": ["**/*.html"], "fallthrough": true }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "TG_OWNER_ID": "1209572157",
+    "DEFAULT_TIMEZONE": "Europe/Moscow",
+    "GEMINI_MODEL": "gemini-2.5-flash",
+    "WORKER_BASE_URL": "https://igor-assistant.afonyakinzahar.workers.dev"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "igor_assistant_db",
+      "database_id": "092a054b-1d6e-4b86-b457-3e8f4923cdf1",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  }
+}
